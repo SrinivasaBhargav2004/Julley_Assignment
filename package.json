@@ -3,6 +3,8 @@
   "version": "1.0.0",
   "description": "Production-grade Real-Time Collaborative Kanban Board with Multi-Organization, Multi-Tenant Hierarchy, Strict Data Isolation, OCC, and Live Presence",
   "scripts": {
+    "start": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,magenta\" \"npm run backend\" \"npm run frontend\"",
+    "dev": "concurrently -n \"BACKEND,FRONTEND\" -c \"blue,magenta\" \"npm run backend\" \"npm run frontend\"",
     "postinstall": "npm --prefix backend install && npm --prefix frontend install",
     "seed": "npm --prefix backend run seed",
     "test": "npm --prefix backend test",
@@ -18,5 +20,8 @@
     "rbac"
   ],
   "author": "",
-  "license": "ISC"
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
 }
