@@ -1,0 +1,22 @@
+{
+  "name": "real-time-multi-tenant-kanban",
+  "version": "1.0.0",
+  "description": "Production-grade Real-Time Collaborative Kanban Board with Multi-Organization, Multi-Tenant Hierarchy, Strict Data Isolation, OCC, and Live Presence",
+  "scripts": {
+    "postinstall": "npm --prefix backend install && npm --prefix frontend install",
+    "seed": "npm --prefix backend run seed",
+    "test": "npm --prefix backend test",
+    "backend": "npm --prefix backend run dev",
+    "frontend": "npm --prefix frontend run dev"
+  },
+  "keywords": [
+    "multi-tenant",
+    "kanban",
+    "socket.io",
+    "optimistic-concurrency-control",
+    "fractional-indexing",
+    "rbac"
+  ],
+  "author": "",
+  "license": "ISC"
+}
