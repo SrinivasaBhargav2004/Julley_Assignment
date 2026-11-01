@@ -44,6 +44,7 @@ async function listTenants(req, res) {
 async function getTenantById(req, res) {
   try {
     const { id } = req.params;
+    const userId = req.user.id;
 
     const tenant = await prisma.tenant.findUnique({
       where: { id },
@@ -59,6 +60,29 @@ async function getTenantById(req, res) {
 
     if (!tenant) {
       return res.status(404).json({ error: 'Tenant not found' });
+    }
+
+    // Strict tenant isolation: verify user has permission to access this branch
+    const hasOrgAccess = await prisma.membership.findFirst({
+      where: {
+        userId,
+        organizationId: tenant.organizationId,
+        role: 'ORG_ADMIN',
+      },
+    });
+
+    const hasTenantAccess = await prisma.membership.findFirst({
+      where: {
+        userId,
+        tenantId: tenant.id,
+      },
+    });
+
+    if (!hasOrgAccess && !hasTenantAccess) {
+      return res.status(403).json({
+        error: 'CrossTenantForbidden',
+        message: `Cross-tenant access denied: You do not have permission to view tenant "${tenant.name}".`,
+      });
     }
 
     return res.json({ tenant });

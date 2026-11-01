@@ -137,6 +137,7 @@ async function updateTask(req, res) {
       title,
       description,
       priority,
+      columnId,
       assigneeId,
       dueDate,
       expectedVersion,
@@ -176,11 +177,23 @@ async function updateTask(req, res) {
       });
     }
 
+    // Validate target column if columnId was modified
+    let newColumnId = existingTask.columnId;
+    if (columnId && columnId !== existingTask.columnId) {
+      const targetColumn = await prisma.column.findFirst({
+        where: { id: columnId, boardId: existingTask.boardId, tenantId },
+      });
+      if (targetColumn) {
+        newColumnId = columnId;
+      }
+    }
+
     // Determine field diffs for activity log
     const diffs = {};
     if (title && title !== existingTask.title) diffs.title = { from: existingTask.title, to: title };
     if (description !== undefined && description !== existingTask.description) diffs.description = { updated: true };
     if (priority && priority !== existingTask.priority) diffs.priority = { from: existingTask.priority, to: priority };
+    if (newColumnId !== existingTask.columnId) diffs.column = { from: existingTask.columnId, to: newColumnId };
     if (assigneeId !== undefined && assigneeId !== existingTask.assigneeId) diffs.assigneeId = { from: existingTask.assigneeId, to: assigneeId };
     if (dueDate !== undefined) diffs.dueDate = { to: dueDate };
 
@@ -190,6 +203,7 @@ async function updateTask(req, res) {
         title: title ? title.trim() : existingTask.title,
         description: description !== undefined ? (description ? description.trim() : null) : existingTask.description,
         priority: priority || existingTask.priority,
+        columnId: newColumnId,
         assigneeId: assigneeId !== undefined ? assigneeId : existingTask.assigneeId,
         dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existingTask.dueDate,
         version: existingTask.version + 1, // Increment OCC version atomically
@@ -209,7 +223,7 @@ async function updateTask(req, res) {
       boardId: existingTask.boardId,
       taskId: updatedTask.id,
       userId: req.user.id,
-      action: 'TASK_UPDATED',
+      action: newColumnId !== existingTask.columnId ? 'TASK_MOVED' : 'TASK_UPDATED',
       details: diffs,
       io: req.app.get('io'),
     });
@@ -217,6 +231,9 @@ async function updateTask(req, res) {
     const io = req.app.get('io');
     if (io) {
       io.to(`tenant:${tenantId}:board:${existingTask.boardId}`).emit('task:updated', updatedTask);
+      if (newColumnId !== existingTask.columnId) {
+        io.to(`tenant:${tenantId}:board:${existingTask.boardId}`).emit('task:moved', updatedTask);
+      }
     }
 
     return res.json({ task: updatedTask });

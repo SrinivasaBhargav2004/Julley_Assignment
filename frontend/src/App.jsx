@@ -39,6 +39,10 @@ export default function App() {
   const [searchQuery, setSearchQuery] = useState('');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
 
+  const [isAddingColumn, setIsAddingColumn] = useState(false);
+  const [newColTitle, setNewColTitle] = useState('');
+  const [newColColor, setNewColColor] = useState('#6366f1');
+
   const undoRedo = useUndoRedo();
 
   // Socket event callbacks
@@ -373,13 +377,42 @@ export default function App() {
     return res;
   };
 
-  // Delete Task
+  // Delete Task with optimistic UI removal
   const handleDeleteTask = async (taskId) => {
     try {
-      await api.deleteTask(taskId);
+      setBoardData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          columns: prev.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.filter((t) => t.id !== taskId),
+          })),
+        };
+      });
       setSelectedTask(null);
+      await api.deleteTask(taskId);
     } catch (err) {
       console.error('Failed to delete task:', err);
+      if (activeBoard) loadFullBoard(activeBoard.id);
+    }
+  };
+
+  // Create Column
+  const handleCreateColumn = async (title, color = '#6366f1') => {
+    if (!activeBoard || !title.trim()) return;
+    try {
+      const { column } = await api.createColumn(activeBoard.id, title.trim(), color);
+      setBoardData((prev) => {
+        if (!prev) return prev;
+        if (prev.columns.some((c) => c.id === column.id)) return prev;
+        return {
+          ...prev,
+          columns: [...prev.columns, { ...column, tasks: [] }],
+        };
+      });
+    } catch (err) {
+      console.error('Failed to create column:', err);
     }
   };
 
@@ -496,6 +529,89 @@ export default function App() {
             activeCollaborators={activeUsers}
           />
         ))}
+
+        {/* Inline Add Column for Admins */}
+        {canCreateBoard && activeBoard && (
+          <div
+            style={{
+              width: '280px',
+              minWidth: '280px',
+              background: 'rgba(255, 255, 255, 0.02)',
+              border: '1px dashed var(--border-medium)',
+              borderRadius: 'var(--radius-lg)',
+              padding: '16px',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              alignSelf: 'flex-start',
+            }}
+          >
+            {!isAddingColumn ? (
+              <button
+                className="btn-secondary"
+                onClick={() => setIsAddingColumn(true)}
+                style={{ width: '100%', justifyContent: 'center', padding: '10px' }}
+              >
+                + Add Another Column
+              </button>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                <input
+                  type="text"
+                  placeholder="Column title (e.g. QA / Testing)..."
+                  value={newColTitle}
+                  onChange={(e) => setNewColTitle(e.target.value)}
+                  className="form-input"
+                  style={{ fontSize: '0.85rem' }}
+                  autoFocus
+                />
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Color:</span>
+                  {['#6366f1', '#ec4899', '#f59e0b', '#10b981', '#06b6d4', '#8b5cf6'].map((clr) => (
+                    <button
+                      key={clr}
+                      type="button"
+                      onClick={() => setNewColColor(clr)}
+                      style={{
+                        width: '18px',
+                        height: '18px',
+                        borderRadius: '50%',
+                        backgroundColor: clr,
+                        border: newColColor === clr ? '2px solid white' : 'none',
+                        cursor: 'pointer',
+                      }}
+                    />
+                  ))}
+                </div>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 1, justifyContent: 'center', fontSize: '0.8rem' }}
+                    onClick={() => {
+                      if (newColTitle.trim()) {
+                        handleCreateColumn(newColTitle, newColColor);
+                        setNewColTitle('');
+                        setIsAddingColumn(false);
+                      }
+                    }}
+                  >
+                    Add Column
+                  </button>
+                  <button
+                    className="btn-secondary"
+                    style={{ fontSize: '0.8rem' }}
+                    onClick={() => {
+                      setIsAddingColumn(false);
+                      setNewColTitle('');
+                    }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        )}
 
         {filteredColumns.length === 0 && (
           <div
