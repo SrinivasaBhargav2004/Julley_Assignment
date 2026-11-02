@@ -3,3 +3,4 @@
   "css.lint.unknownVendorSpecificProperties": "ignore",
   "typescript.tsdk": "frontend/node_modules/typescript/lib"
 }
+
