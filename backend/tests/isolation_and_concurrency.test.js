@@ -1,7 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert');
 const prisma = require('../src/db/prisma');
-const { calculatePosition } = require('../src/services/fractionalIndex');
+const { calculatePosition, rebalanceColumnTasks } = require('../src/services/fractionalIndex');
+const { logActivity } = require('../src/services/activityService');
 
 test('Fractional Indexing calculation', () => {
   // Empty column
@@ -79,4 +80,82 @@ test('Multi-Tenant Data Isolation and OCC Versioning', async () => {
 
   // Clean up test task
   await prisma.task.delete({ where: { id: testTask.id } });
+});
+
+test('Task Deletion and Audit Log Foreign Key Integrity', async () => {
+  const sfTenant = await prisma.tenant.findFirst({ where: { slug: 'sf-hq' } });
+  const board = await prisma.board.findFirst({ where: { tenantId: sfTenant.id } });
+  const column = await prisma.column.findFirst({ where: { boardId: board.id } });
+  const user = await prisma.user.findFirst();
+
+  // Create temporary task
+  const tempTask = await prisma.task.create({
+    data: {
+      boardId: board.id,
+      columnId: column.id,
+      tenantId: sfTenant.id,
+      title: 'Audit Log Integrity Test Task',
+      position: 8000,
+      version: 1,
+      createdBy: user.id,
+    },
+  });
+
+  // Verify logActivity called before delete creates valid audit log without FK violation
+  const log = await logActivity({
+    tenantId: sfTenant.id,
+    boardId: board.id,
+    taskId: tempTask.id,
+    userId: user.id,
+    action: 'TASK_DELETED',
+    details: { taskId: tempTask.id, title: tempTask.title },
+  });
+
+  assert.ok(log, 'Audit log was created successfully');
+  assert.strictEqual(log.taskId, tempTask.id);
+
+  // Delete the task - SQLite cascade should set taskId in audit log to null
+  await prisma.task.delete({ where: { id: tempTask.id } });
+
+  const refetchedLog = await prisma.activityLog.findUnique({ where: { id: log.id } });
+  assert.ok(refetchedLog, 'Audit log remains persisted after task deletion');
+  assert.strictEqual(refetchedLog.taskId, null, 'Foreign key taskId set to null cleanly');
+
+  // Clean up test log
+  await prisma.activityLog.delete({ where: { id: log.id } });
+});
+
+test('Column Fractional Rebalancing', async () => {
+  const sfTenant = await prisma.tenant.findFirst({ where: { slug: 'sf-hq' } });
+  const board = await prisma.board.findFirst({ where: { tenantId: sfTenant.id } });
+  const user = await prisma.user.findFirst();
+
+  // Create temporary column with compressed positions
+  const testCol = await prisma.column.create({
+    data: {
+      boardId: board.id,
+      tenantId: sfTenant.id,
+      title: 'Rebalance Test Col',
+      position: 9999,
+    },
+  });
+
+  const t1 = await prisma.task.create({
+    data: { boardId: board.id, columnId: testCol.id, tenantId: sfTenant.id, title: 'T1', position: 1000.001, createdBy: user.id },
+  });
+  const t2 = await prisma.task.create({
+    data: { boardId: board.id, columnId: testCol.id, tenantId: sfTenant.id, title: 'T2', position: 1000.002, createdBy: user.id },
+  });
+
+  // Run rebalance
+  await rebalanceColumnTasks(prisma, testCol.id, sfTenant.id);
+
+  const refetchedT1 = await prisma.task.findUnique({ where: { id: t1.id } });
+  const refetchedT2 = await prisma.task.findUnique({ where: { id: t2.id } });
+
+  assert.strictEqual(refetchedT1.position, 1000.0, 'T1 position cleanly spaced to 1000');
+  assert.strictEqual(refetchedT2.position, 2000.0, 'T2 position cleanly spaced to 2000');
+
+  // Clean up
+  await prisma.column.delete({ where: { id: testCol.id } });
 });

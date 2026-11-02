@@ -12,7 +12,7 @@ const clientUrl = process.env.CLIENT_URL || 'http://localhost:5173';
 // Middleware
 app.use(
   cors({
-    origin: '*',
+    origin: true,
     credentials: true,
   })
 );
@@ -46,12 +46,28 @@ const io = setupSocketServer(httpServer, clientUrl);
 // Attach io instance to app for controller access
 app.set('io', io);
 
-// Start Server
+// Start Server with resilient port handling
 if (require.main === module) {
-  httpServer.listen(port, () => {
-    console.log(`🚀 Kanban Multi-Tenant Server running on http://localhost:${port}`);
-    console.log(`📡 WebSocket server initialized with tenant-scoped presence channels`);
-  });
+  const startServer = (p) => {
+    const errorHandler = (err) => {
+      if (err.code === 'EADDRINUSE' || err.code === 'EACCES') {
+        console.warn(`⚠️ Port ${p} unavailable (${err.code}), attempting fallback port ${p + 1}...`);
+        startServer(p + 1);
+      } else {
+        console.error('Server startup error:', err);
+      }
+    };
+
+    httpServer.once('error', errorHandler);
+
+    httpServer.listen(p, () => {
+      httpServer.removeListener('error', errorHandler);
+      console.log(`🚀 Kanban Multi-Tenant Server running on http://localhost:${p}`);
+      console.log(`📡 WebSocket server initialized with tenant-scoped presence channels`);
+    });
+  };
+
+  startServer(Number(port));
 }
 
 module.exports = { app, httpServer, io };

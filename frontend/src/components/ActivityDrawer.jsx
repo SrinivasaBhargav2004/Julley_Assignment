@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, History, ArrowRight, CheckCircle2, Clock } from 'lucide-react';
+import { X, History, Clock } from 'lucide-react';
 
 export function ActivityDrawer({ isOpen, onClose, activities = [], tenantName }) {
   if (!isOpen) return null;
@@ -18,14 +18,15 @@ export function ActivityDrawer({ isOpen, onClose, activities = [], tenantName })
         case 'TASK_MOVED':
           return (
             <span>
-              moved task to a new position/column
+              moved task {details.taskTitle ? <strong>"{details.taskTitle}"</strong> : ''} to a new position/column
             </span>
           );
         case 'TASK_UPDATED':
-          const keys = Object.keys(details);
+          const keys = Object.keys(details).filter((k) => k !== 'taskTitle');
           return (
             <span>
-              updated task {keys.length > 0 ? `(${keys.join(', ')})` : ''}
+              updated task {details.taskTitle ? <strong>"{details.taskTitle}"</strong> : ''}{' '}
+              {keys.length > 0 ? `(${keys.join(', ')})` : ''}
             </span>
           );
         case 'TASK_DELETED':
@@ -38,6 +39,30 @@ export function ActivityDrawer({ isOpen, onClose, activities = [], tenantName })
           return (
             <span>
               created new board <strong>"{details.title}"</strong>
+            </span>
+          );
+        case 'BOARD_UPDATED':
+          return (
+            <span>
+              updated board <strong>"{details.title}"</strong>
+            </span>
+          );
+        case 'BOARD_DELETED':
+          return (
+            <span style={{ color: 'var(--status-rose)' }}>
+              deleted board <strong>"{details.title || ''}"</strong>
+            </span>
+          );
+        case 'COLUMN_CREATED':
+          return (
+            <span>
+              created column <strong>"{details.title}"</strong>
+            </span>
+          );
+        case 'COLUMN_DELETED':
+          return (
+            <span style={{ color: 'var(--status-rose)' }}>
+              deleted column <strong>"{details.title || ''}"</strong>
             </span>
           );
         default:

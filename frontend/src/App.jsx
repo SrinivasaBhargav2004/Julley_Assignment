@@ -131,9 +131,20 @@ export default function App() {
     setActivities((prev) => [newLog, ...prev]);
   }, []);
 
+  // 4. Load Complete Board Data (Columns + Tasks)
+  const loadFullBoard = useCallback(async (boardId) => {
+    try {
+      const { board } = await api.getBoard(boardId);
+      setActiveBoard(board);
+      setBoardData(board);
+    } catch (err) {
+      console.error('Failed to load board details:', err);
+    }
+  }, []);
+
   const handleBoardSync = useCallback((boardId) => {
     if (boardId) loadFullBoard(boardId);
-  }, []);
+  }, [loadFullBoard]);
 
   // Initialize Socket with presence and room handling
   const { isConnected, activeUsers, focusCard } = useBoardSocket({
@@ -171,8 +182,8 @@ export default function App() {
   const handleSwitchUser = async (userId) => {
     try {
       const res = await api.switchUser(userId);
-      setCurrentUser(res.user);
       api.setAuth(res.token, res.user.id);
+      setCurrentUser(res.user);
 
       const { organizations: orgs } = await api.getOrganizations();
       setOrganizations(orgs);
@@ -197,7 +208,19 @@ export default function App() {
           setCurrentRole(membership?.role || 'MEMBER');
 
           await loadBoardsForTenant(targetTenant.id);
+        } else {
+          setSelectedTenant(null);
+          setBoards([]);
+          setActiveBoard(null);
+          setBoardData(null);
         }
+      } else {
+        setSelectedOrg(null);
+        setSelectedTenant(null);
+        setTenants([]);
+        setBoards([]);
+        setActiveBoard(null);
+        setBoardData(null);
       }
     } catch (err) {
       console.error('Failed to switch user:', err);
@@ -224,17 +247,6 @@ export default function App() {
     }
   };
 
-  // 4. Load Complete Board Data (Columns + Tasks)
-  const loadFullBoard = async (boardId) => {
-    try {
-      const { board } = await api.getBoard(boardId);
-      setActiveBoard(board);
-      setBoardData(board);
-    } catch (err) {
-      console.error('Failed to load board details:', err);
-    }
-  };
-
   // 5. Select Organization
   const handleSelectOrg = async (org) => {
     setSelectedOrg(org);
@@ -247,6 +259,7 @@ export default function App() {
       } else {
         setSelectedTenant(null);
         setBoards([]);
+        setActiveBoard(null);
         setBoardData(null);
       }
     } catch (err) {
@@ -355,6 +368,20 @@ export default function App() {
   // Update Task (supports OCC)
   const handleUpdateTask = async ({ taskId, updatedFields, previousTask }) => {
     const res = await api.updateTask(taskId, updatedFields);
+
+    if (res?.task) {
+      setBoardData((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          columns: prev.columns.map((col) => ({
+            ...col,
+            tasks: col.tasks.map((t) => (t.id === res.task.id ? res.task : t)),
+          })),
+        };
+      });
+      setSelectedTask(res.task);
+    }
 
     undoRedo.pushAction({
       type: 'UPDATE_TASK',
@@ -527,6 +554,7 @@ export default function App() {
               setIsNewTaskModalOpen(true);
             }}
             activeCollaborators={activeUsers}
+            currentUserId={currentUser?.id}
           />
         ))}
 

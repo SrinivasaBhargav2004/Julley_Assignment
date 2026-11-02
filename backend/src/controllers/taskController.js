@@ -204,7 +204,7 @@ async function updateTask(req, res) {
         description: description !== undefined ? (description ? description.trim() : null) : existingTask.description,
         priority: priority || existingTask.priority,
         columnId: newColumnId,
-        assigneeId: assigneeId !== undefined ? assigneeId : existingTask.assigneeId,
+        assigneeId: assigneeId !== undefined ? (assigneeId || null) : existingTask.assigneeId,
         dueDate: dueDate !== undefined ? (dueDate ? new Date(dueDate) : null) : existingTask.dueDate,
         version: existingTask.version + 1, // Increment OCC version atomically
       },
@@ -224,7 +224,7 @@ async function updateTask(req, res) {
       taskId: updatedTask.id,
       userId: req.user.id,
       action: newColumnId !== existingTask.columnId ? 'TASK_MOVED' : 'TASK_UPDATED',
-      details: diffs,
+      details: { ...diffs, taskTitle: updatedTask.title },
       io: req.app.get('io'),
     });
 
@@ -304,7 +304,16 @@ async function moveTask(req, res) {
         if (nextTask) nextPos = nextTask.position;
       }
 
-      calculatedPosition = calculatePosition(prevPos, nextPos);
+      // Check for precision collapse and rebalance column if adjacent numbers are extremely close
+      if (prevPos != null && nextPos != null && Math.abs(nextPos - prevPos) < 0.0001) {
+        await rebalanceColumnTasks(prisma, targetColumnId || existingTask.columnId, tenantId);
+        // Refresh positions after rebalance
+        const refetchedPrev = prevTaskId ? await prisma.task.findUnique({ where: { id: prevTaskId }, select: { position: true } }) : null;
+        const refetchedNext = nextTaskId ? await prisma.task.findUnique({ where: { id: nextTaskId }, select: { position: true } }) : null;
+        calculatedPosition = calculatePosition(refetchedPrev?.position, refetchedNext?.position);
+      } else {
+        calculatedPosition = calculatePosition(prevPos, nextPos);
+      }
     }
 
     const newColId = targetColumnId || existingTask.columnId;
@@ -319,11 +328,15 @@ async function moveTask(req, res) {
       }
     }
 
+    const finalPosition = calculatedPosition !== undefined && !isNaN(calculatedPosition)
+      ? calculatedPosition
+      : existingTask.position;
+
     const updatedTask = await prisma.task.update({
       where: { id },
       data: {
         columnId: newColId,
-        position: calculatedPosition,
+        position: finalPosition,
         version: existingTask.version + 1,
       },
       include: {
@@ -343,9 +356,10 @@ async function moveTask(req, res) {
       userId: req.user.id,
       action: 'TASK_MOVED',
       details: {
+        taskTitle: updatedTask.title,
         fromColumnId: existingTask.columnId,
         toColumnId: newColId,
-        position: calculatedPosition,
+        position: finalPosition,
       },
       io: req.app.get('io'),
     });
@@ -375,17 +389,18 @@ async function deleteTask(req, res) {
       return res.status(404).json({ error: 'Task not found in current tenant' });
     }
 
-    await prisma.task.delete({ where: { id } });
-
+    // Log activity BEFORE deleting task to preserve audit foreign key integrity
     await logActivity({
       tenantId,
       boardId: existingTask.boardId,
       taskId: id,
       userId: req.user.id,
       action: 'TASK_DELETED',
-      details: { title: existingTask.title },
+      details: { taskId: id, title: existingTask.title },
       io: req.app.get('io'),
     });
+
+    await prisma.task.delete({ where: { id } });
 
     const io = req.app.get('io');
     if (io) {

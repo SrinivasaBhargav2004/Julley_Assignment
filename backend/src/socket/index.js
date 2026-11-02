@@ -9,7 +9,7 @@ const { verifyToken } = require('../utils/auth');
 function setupSocketServer(httpServer, clientUrl) {
   const io = new Server(httpServer, {
     cors: {
-      origin: clientUrl || '*',
+      origin: true,
       methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
       credentials: true,
     },
@@ -164,10 +164,15 @@ function setupSocketServer(httpServer, clientUrl) {
     // Handle disconnect
     socket.on('disconnect', () => {
       console.log(`❌ Socket disconnected: ${user.name} (${socket.id})`);
-      if (currentRoomKey) {
-        cleanupPresence(currentRoomKey, socket.id);
-        broadcastPresence(currentRoomKey);
-      }
+      presenceMap.forEach((userMap, roomKey) => {
+        if (userMap.has(socket.id)) {
+          cleanupPresence(roomKey, socket.id);
+          broadcastPresence(roomKey);
+        }
+      });
+      currentRoomKey = null;
+      currentBoardId = null;
+      currentTenantId = null;
     });
 
     function getActiveUsers(roomKey) {

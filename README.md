@@ -203,6 +203,11 @@ npm run backend
 npm run frontend
 ```
 
+Or run both concurrently from the root directory:
+```bash
+npm run dev
+```
+
 Open your browser to: **`http://localhost:5173`**
 
 ### Running Automated Test Suite

@@ -11,6 +11,16 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
+function formatDueDate(val) {
+  if (!val) return '';
+  try {
+    const d = new Date(val);
+    return isNaN(d.getTime()) ? '' : d.toISOString().split('T')[0];
+  } catch (e) {
+    return '';
+  }
+}
+
 export function TaskDetailModal({
   task,
   columns,
@@ -26,7 +36,7 @@ export function TaskDetailModal({
     priority: task.priority || 'MEDIUM',
     columnId: task.columnId || '',
     assigneeId: task.assigneeId || '',
-    dueDate: task.dueDate ? task.dueDate.split('T')[0] : '',
+    dueDate: formatDueDate(task.dueDate),
   });
 
   const [conflictData, setConflictData] = useState(null);
@@ -93,7 +103,7 @@ export function TaskDetailModal({
       priority: server.priority || 'MEDIUM',
       columnId: server.columnId || '',
       assigneeId: server.assigneeId || '',
-      dueDate: server.dueDate ? server.dueDate.split('T')[0] : '',
+      dueDate: formatDueDate(server.dueDate),
     });
     setConflictData(null);
   };
@@ -293,7 +303,7 @@ export function TaskDetailModal({
             }}
           >
             <span>Created by: {task.creator?.name || 'System'}</span>
-            <span>Last modified: {new Date(task.updatedAt).toLocaleString()}</span>
+            <span>Last modified: {task.updatedAt ? new Date(task.updatedAt).toLocaleString() : 'Recently'}</span>
           </div>
         </div>
 

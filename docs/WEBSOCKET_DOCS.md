@@ -6,7 +6,7 @@ The platform uses **Socket.io** over WebSockets with automatic fallback to HTTP 
 
 ## 1. Connection & Handshake Authentication
 
-- **Endpoint**: `ws://localhost:4000` / `http://localhost:4000/socket.io/`
+- **Endpoint**: `ws://localhost:4000` / `http://localhost:4000/socket.io/` (or via Vite `/socket.io` proxy)
 - **Handshake Payload**:
 ```javascript
 const socket = io('http://localhost:4000', {

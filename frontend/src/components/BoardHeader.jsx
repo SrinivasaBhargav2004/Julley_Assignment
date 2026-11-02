@@ -36,11 +36,15 @@ export function BoardHeader({
             }}
             aria-label="Select Kanban Board"
           >
-            {boards.map((b) => (
-              <option key={b.id} value={b.id}>
-                {b.title}
-              </option>
-            ))}
+            {boards.length === 0 ? (
+              <option value="">No Boards Available</option>
+            ) : (
+              boards.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.title}
+                </option>
+              ))
+            )}
           </select>
         </div>
 

@@ -17,7 +17,13 @@ export function SocketProvider({ children, currentUser, activeTenant, activeBoar
     if (!currentUser) return;
 
     const token = localStorage.getItem('nexus_token');
-    const newSocket = io('http://localhost:4000', {
+    const socketUrl =
+      import.meta.env.VITE_BACKEND_URL ||
+      (window.location.port === '5173' || window.location.port === '5174'
+        ? 'http://localhost:4000'
+        : '/');
+
+    const newSocket = io(socketUrl, {
       auth: {
         token,
         userId: currentUser.id,

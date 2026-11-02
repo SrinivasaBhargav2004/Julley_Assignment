@@ -62,4 +62,12 @@ tenantScoped.get('/activities', activityController.listActivities);
 
 router.use('/', tenantScoped);
 
+// Fallback 404 handler for unknown API routes
+router.use((req, res) => {
+  res.status(404).json({
+    error: 'NotFound',
+    message: `API route ${req.method} ${req.originalUrl} not found.`,
+  });
+});
+
 module.exports = router;

@@ -75,11 +75,15 @@ export function TopNavbar({
               }}
               aria-label="Select Tenant Branch"
             >
-              {tenants.map((t) => (
-                <option key={t.id} value={t.id}>
-                  {t.name} ({t.code})
-                </option>
-              ))}
+              {tenants.length === 0 ? (
+                <option value="">No Branches Available</option>
+              ) : (
+                tenants.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name} ({t.code})
+                  </option>
+                ))
+              )}
             </select>
           </div>
         </div>
@@ -92,7 +96,7 @@ export function TopNavbar({
           className={`live-indicator ${isConnected ? 'connected' : 'disconnected'}`}
           title={isConnected ? 'Connected to tenant WebSocket room' : 'Disconnected from server'}
         >
-          <span className="live-dot" />
+          {isConnected ? <Wifi size={13} /> : <WifiOff size={13} />}
           <span>{isConnected ? 'LIVE SYNC' : 'OFFLINE'}</span>
         </div>
 

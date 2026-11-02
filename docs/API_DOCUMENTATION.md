@@ -1,6 +1,6 @@
 # REST API Documentation
 
-Base URL: `http://localhost:4000/api`
+Base URL: `http://localhost:4000/api` (or configured `PORT`)
 
 ---
 

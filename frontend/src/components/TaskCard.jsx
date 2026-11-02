@@ -1,7 +1,15 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Calendar, User, Eye } from 'lucide-react';
 
-export function TaskCard({ task, onClick, activeCollaborators = [] }) {
+export function TaskCard({
+  task,
+  onClick,
+  activeCollaborators = [],
+  currentUserId,
+  onDropOnCard,
+}) {
+  const [dropPlacement, setDropPlacement] = useState(null); // 'top' | 'bottom' | null
+
   const handleDragStart = (e) => {
     e.dataTransfer.setData(
       'application/json',
@@ -17,6 +25,31 @@ export function TaskCard({ task, onClick, activeCollaborators = [] }) {
 
   const handleDragEnd = (e) => {
     e.currentTarget.classList.remove('dragging');
+    setDropPlacement(null);
+  };
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const isTop = e.clientY - rect.top < rect.height / 2;
+    setDropPlacement(isTop ? 'top' : 'bottom');
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDropPlacement(null);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const placement = dropPlacement || 'bottom';
+    setDropPlacement(null);
+    if (onDropOnCard) {
+      onDropOnCard(task, placement, e);
+    }
   };
 
   const priorityClasses = {
@@ -26,16 +59,29 @@ export function TaskCard({ task, onClick, activeCollaborators = [] }) {
     LOW: 'priority-low',
   };
 
-  // Check if any other user is currently viewing/editing this task
-  const editingUser = activeCollaborators.find((u) => u.activeCardId === task.id);
+  // Remote collaborators currently viewing/editing this task (excluding the active user)
+  const editingUser = activeCollaborators.find(
+    (u) => u.id !== currentUserId && u.activeCardId === task.id
+  );
 
   return (
     <div
-      className="task-card"
+      className={`task-card ${dropPlacement ? `drop-target-${dropPlacement}` : ''}`}
       draggable
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
       onClick={() => onClick(task)}
+      style={{
+        boxShadow:
+          dropPlacement === 'top'
+            ? '0 -3px 0 0 var(--accent-primary)'
+            : dropPlacement === 'bottom'
+            ? '0 3px 0 0 var(--accent-primary)'
+            : undefined,
+      }}
     >
       {/* Remote Live Collaborator Indicator */}
       {editingUser && (

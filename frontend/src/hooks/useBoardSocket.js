@@ -23,12 +23,38 @@ export function useBoardSocket({
   activeTenantRef.current = activeTenant;
   activeBoardRef.current = activeBoard;
 
+  const callbacksRef = useRef({
+    onTaskCreated,
+    onTaskUpdated,
+    onTaskMoved,
+    onTaskDeleted,
+    onColumnCreated,
+    onActivityLogged,
+    onBoardSync,
+  });
+
+  callbacksRef.current = {
+    onTaskCreated,
+    onTaskUpdated,
+    onTaskMoved,
+    onTaskDeleted,
+    onColumnCreated,
+    onActivityLogged,
+    onBoardSync,
+  };
+
   // Initialize Socket connection
   useEffect(() => {
     if (!currentUser) return;
 
     const token = localStorage.getItem('nexus_token');
-    const newSocket = io('http://localhost:4000', {
+    const socketUrl =
+      import.meta.env.VITE_BACKEND_URL ||
+      (window.location.port === '5173' || window.location.port === '5174'
+        ? 'http://localhost:4000'
+        : '/');
+
+    const newSocket = io(socketUrl, {
       auth: {
         token,
         userId: currentUser.id,
@@ -48,9 +74,7 @@ export function useBoardSocket({
           tenantId: activeTenantRef.current.id,
           boardId: activeBoardRef.current.id,
         });
-        if (onBoardSync) {
-          onBoardSync(activeBoardRef.current.id);
-        }
+        callbacksRef.current.onBoardSync?.(activeBoardRef.current.id);
       }
     });
 
@@ -63,13 +87,13 @@ export function useBoardSocket({
       setActiveUsers(users || []);
     });
 
-    // Real-time Kanban board updates
-    newSocket.on('task:created', (data) => onTaskCreated && onTaskCreated(data));
-    newSocket.on('task:updated', (data) => onTaskUpdated && onTaskUpdated(data));
-    newSocket.on('task:moved', (data) => onTaskMoved && onTaskMoved(data));
-    newSocket.on('task:deleted', (data) => onTaskDeleted && onTaskDeleted(data));
-    newSocket.on('column:created', (data) => onColumnCreated && onColumnCreated(data));
-    newSocket.on('activity:logged', (data) => onActivityLogged && onActivityLogged(data));
+    // Real-time Kanban board updates with latest callback refs
+    newSocket.on('task:created', (data) => callbacksRef.current.onTaskCreated?.(data));
+    newSocket.on('task:updated', (data) => callbacksRef.current.onTaskUpdated?.(data));
+    newSocket.on('task:moved', (data) => callbacksRef.current.onTaskMoved?.(data));
+    newSocket.on('task:deleted', (data) => callbacksRef.current.onTaskDeleted?.(data));
+    newSocket.on('column:created', (data) => callbacksRef.current.onColumnCreated?.(data));
+    newSocket.on('activity:logged', (data) => callbacksRef.current.onActivityLogged?.(data));
 
     setSocket(newSocket);
 

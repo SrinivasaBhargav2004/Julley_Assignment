@@ -207,8 +207,6 @@ async function deleteBoard(req, res) {
       return res.status(404).json({ error: 'Board not found in current tenant' });
     }
 
-    await prisma.board.delete({ where: { id } });
-
     await logActivity({
       tenantId,
       boardId: id,
@@ -217,6 +215,8 @@ async function deleteBoard(req, res) {
       details: { title: existingBoard.title },
       io: req.app.get('io'),
     });
+
+    await prisma.board.delete({ where: { id } });
 
     const io = req.app.get('io');
     if (io) {

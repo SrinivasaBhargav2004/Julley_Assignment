@@ -115,8 +115,6 @@ async function deleteColumn(req, res) {
       return res.status(404).json({ error: 'Column not found in current tenant' });
     }
 
-    await prisma.column.delete({ where: { id } });
-
     await logActivity({
       tenantId,
       boardId: existingCol.boardId,
@@ -125,6 +123,8 @@ async function deleteColumn(req, res) {
       details: { title: existingCol.title },
       io: req.app.get('io'),
     });
+
+    await prisma.column.delete({ where: { id } });
 
     const io = req.app.get('io');
     if (io) {

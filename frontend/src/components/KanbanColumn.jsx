@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Plus } from 'lucide-react';
 import { TaskCard } from './TaskCard';
+import { calculatePosition } from '../utils/fractionalIndex';
 
 export function KanbanColumn({
   column,
@@ -9,6 +10,7 @@ export function KanbanColumn({
   onTaskMove,
   onOpenNewTaskModal,
   activeCollaborators,
+  currentUserId,
 }) {
   const [isDragOver, setIsDragOver] = useState(false);
 
@@ -21,6 +23,46 @@ export function KanbanColumn({
     setIsDragOver(false);
   };
 
+  // Dropping onto a specific task card to place before or after it
+  const handleDropOnCard = (targetCard, placement, e) => {
+    try {
+      const dataStr = e.dataTransfer.getData('application/json');
+      if (!dataStr) return;
+
+      const { taskId, sourceColumnId, sourcePosition, version } = JSON.parse(dataStr);
+      if (taskId === targetCard.id) return; // Ignore dropping onto itself
+
+      const sortedTasks = [...tasks].sort((a, b) => a.position - b.position);
+      const otherTasks = sortedTasks.filter((t) => t.id !== taskId);
+      const targetIdx = otherTasks.findIndex((t) => t.id === targetCard.id);
+
+      let prevPos = null;
+      let nextPos = null;
+
+      if (placement === 'top') {
+        nextPos = targetCard.position;
+        prevPos = targetIdx > 0 ? otherTasks[targetIdx - 1].position : null;
+      } else {
+        prevPos = targetCard.position;
+        nextPos = targetIdx < otherTasks.length - 1 ? otherTasks[targetIdx + 1].position : null;
+      }
+
+      const targetPosition = calculatePosition(prevPos, nextPos);
+
+      onTaskMove({
+        taskId,
+        sourceColumnId,
+        sourcePosition,
+        targetColumnId: column.id,
+        targetPosition,
+        expectedVersion: version,
+      });
+    } catch (err) {
+      console.error('Error handling drop on card:', err);
+    }
+  };
+
+  // Dropping into the general column container space (append after last card)
   const handleDrop = (e) => {
     e.preventDefault();
     setIsDragOver(false);
@@ -31,18 +73,15 @@ export function KanbanColumn({
 
       const { taskId, sourceColumnId, sourcePosition, version } = JSON.parse(dataStr);
 
-      // Determine drop position within the column
-      // If dropped onto column background, calculate next position after last task
       const sortedTasks = [...tasks].sort((a, b) => a.position - b.position);
       const otherTasks = sortedTasks.filter((t) => t.id !== taskId);
 
       let targetPosition;
-
       if (otherTasks.length === 0) {
-        targetPosition = 1000.0;
+        targetPosition = calculatePosition(null, null);
       } else {
         const lastTask = otherTasks[otherTasks.length - 1];
-        targetPosition = (lastTask?.position || 1000.0) + 1000.0;
+        targetPosition = calculatePosition(lastTask?.position, null);
       }
 
       onTaskMove({
@@ -85,6 +124,8 @@ export function KanbanColumn({
             task={task}
             onClick={onTaskClick}
             activeCollaborators={activeCollaborators}
+            currentUserId={currentUserId}
+            onDropOnCard={handleDropOnCard}
           />
         ))}
 
